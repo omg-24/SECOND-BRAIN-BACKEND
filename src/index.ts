@@ -1,8 +1,8 @@
 import express from "express";
 import mongoose from "mongoose";    
 import jwt from "jsonwebtoken"
-import { ContentModel, UserModel } from "./db.js";
-
+import { ContentModel, UserModel,LinkModel } from "./db.js";
+import crypto from "crypto";
 import {config} from "./config.js"
 import { userMiddleware } from "./middleware.js";
 
@@ -58,10 +58,11 @@ app.post("/api/v1/signin", async (req, res) =>{
 app.post("/api/v1/content",userMiddleware, async (req, res) =>{
     const link = req.body.link
     const type = req.body.type;
-
+    const title = req.body.title
     await ContentModel.create({
         link,
         type,
+        title, 
         //@ts-ignore
         userId: req.userId,
         tags: []
@@ -86,7 +87,7 @@ app.get("/api/v1/content",userMiddleware,async (req, res) =>{
 
 
 app.delete("/api/v1/content",userMiddleware,async (req, res) =>{
-    const contentId = req.body.contetnId
+    const contentId = req.body.contentId
     //@ts-ignore
     const userId = req.userId
     try{
@@ -105,12 +106,37 @@ app.delete("/api/v1/content",userMiddleware,async (req, res) =>{
 })
 
 
-app.post("/api/v1/brain/share", (req, res) =>{
-    
-})
+app.post("/api/v1/brain/share", userMiddleware, async (req, res) => {
 
+    //@ts-ignore
+    const userId = req.userId;
+
+    const existingLink = await LinkModel.findOne({
+        userId
+    });
+
+    if (existingLink) {
+        return res.json({
+            hash: existingLink.hash
+        });
+    }
+
+    const hash = crypto.randomBytes(8).toString("hex");
+
+    await LinkModel.create({
+        hash,
+        userId
+    });
+
+    res.json({
+        hash
+    });
+});
+
+
+//fetch another shared link
 app.post("/api/v1/brain/:shareLink", (req, res) =>{
     
 })
 
-app.listen(3000);
+export default app;
