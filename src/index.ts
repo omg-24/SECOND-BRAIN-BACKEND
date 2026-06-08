@@ -5,9 +5,13 @@ import { ContentModel, UserModel,LinkModel } from "./db.js";
 import crypto from "crypto";
 import {config} from "./config.js"
 import { userMiddleware } from "./middleware.js";
+import cors from "cors";
+import { random } from "./utils.js";
+
 
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.post("/api/v1/signup", async (req, res) => {
@@ -116,29 +120,31 @@ app.delete("/api/v1/content", userMiddleware, async (req, res) => {
 
 app.post("/api/v1/brain/share", userMiddleware, async (req, res) => {
     try {
-        //@ts-ignore
-        const userId = req.userId;
+        const  share = req.body.share;
 
-        const existingLink = await LinkModel.findOne({
-            userId
-        });
+        if(share){
+            const hash = random(10)
+            await LinkModel.create({
+                //@ts-ignore
+                userId: req.userId,
+                hash: hash
+            })
+            res.json({
+                message: "share/"+hash
+            })
 
-        if (existingLink) {
-            return res.json({
-                hash: existingLink.hash
-            });
+        }else{
+            await LinkModel.deleteMany({
+                //@ts-ignore
+                userId: req.userId
+            })
+            res.json({
+                message: "Removed sharable link"
+            })
         }
 
-        const hash = crypto.randomBytes(8).toString("hex");
-
-        await LinkModel.create({
-            hash,
-            userId
-        });
-
-        res.json({
-            hash
-        });
+        
+        
     } catch (e) {
         res.status(500).json({
             message: "Unable to generate share link"
@@ -155,7 +161,7 @@ app.get("/api/v1/brain/:shareLink", async (req, res) => {
         });
 
         if (!link) {
-            return res.status(404).json({
+            return res.status(411).json({
                 message: "Share link not found"
             });
         }
@@ -164,8 +170,13 @@ app.get("/api/v1/brain/:shareLink", async (req, res) => {
             userId: link.userId
         }).populate("userId", "username");
 
+        const creator = await UserModel.findOne({
+            userId: link.userId
+        })
+
         res.json({
-            content
+            username: creator?.username,
+            content: content
         });
     } catch (e) {
         res.status(500).json({
