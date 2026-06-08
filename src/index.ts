@@ -117,43 +117,58 @@ app.delete("/api/v1/content", userMiddleware, async (req, res) => {
     }
 });
 
-
 app.post("/api/v1/brain/share", userMiddleware, async (req, res) => {
     try {
-        const  share = req.body.share;
+        const share = req.body.share;
 
-        if(share){
-            const hash = random(10)
+        //@ts-ignore
+        const userId = req.userId;
+
+        if (share) {
+
+            const existingLink = await LinkModel.findOne({
+                userId
+            });
+
+            if (existingLink) {
+                return res.json({
+                    hash: existingLink.hash
+                });
+            }
+
+            const hash = random(10);
+
             await LinkModel.create({
-                //@ts-ignore
-                userId: req.userId,
-                hash: hash
-            })
-            res.json({
-                message: "share/"+hash
-            })
+                userId,
+                hash
+            });
 
-        }else{
-            await LinkModel.deleteMany({
-                //@ts-ignore
-                userId: req.userId
-            })
-            res.json({
-                message: "Removed sharable link"
-            })
+            return res.json({
+                hash
+            });
+
+        } else {
+
+            await LinkModel.deleteOne({
+                userId
+            });
+
+            return res.json({
+                message: "Share link removed"
+            });
         }
 
-        
-        
     } catch (e) {
+        console.log(e);
+
         res.status(500).json({
             message: "Unable to generate share link"
         });
     }
 });
-
 app.get("/api/v1/brain/:shareLink", async (req, res) => {
     try {
+
         const hash = req.params.shareLink;
 
         const link = await LinkModel.findOne({
@@ -161,24 +176,25 @@ app.get("/api/v1/brain/:shareLink", async (req, res) => {
         });
 
         if (!link) {
-            return res.status(411).json({
+            return res.status(404).json({
                 message: "Share link not found"
             });
         }
 
         const content = await ContentModel.find({
             userId: link.userId
-        }).populate("userId", "username");
-
-        const creator = await UserModel.findOne({
-            userId: link.userId
-        })
-
-        res.json({
-            username: creator?.username,
-            content: content
         });
+
+        const creator = await UserModel.findById(link.userId);
+
+        return res.json({
+            username: creator?.username,
+            content
+        });
+
     } catch (e) {
+        console.log(e);
+
         res.status(500).json({
             message: "Internal server error"
         });
